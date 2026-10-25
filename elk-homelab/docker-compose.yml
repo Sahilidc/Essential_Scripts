@@ -1,0 +1,64 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elk-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      cluster.name: homelab-elk
+      ES_JAVA_OPTS: "-Xms${ES_HEAP} -Xmx${ES_HEAP}"
+    mem_limit: 2g
+    ports:
+      - "${BIND_ADDRESS}:9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    container_name: elk-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      TELEMETRY_ENABLED: "false"
+    mem_limit: 1g
+    ports:
+      - "${BIND_ADDRESS}:5601:5601"
+    restart: unless-stopped
+    networks:
+      - elk
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+    container_name: elk-logstash
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      LS_JAVA_OPTS: "-Xms${LOGSTASH_HEAP} -Xmx${LOGSTASH_HEAP}"
+    mem_limit: 1g
+    ports:
+      - "${BIND_ADDRESS}:8080:8080"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    restart: unless-stopped
+    networks:
+      - elk
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local
