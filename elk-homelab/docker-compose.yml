@@ -1,11 +1,13 @@
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     container_name: elk-elasticsearch
     environment:
       discovery.type: single-node
-      xpack.security.enabled: "false"
+      xpack.security.enabled: "true"
       cluster.name: homelab-elk
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ES_JAVA_OPTS: "-Xms${ES_HEAP} -Xmx${ES_HEAP}"
     mem_limit: 2g
     ports:
@@ -14,11 +16,13 @@ services:
       - esdata:/usr/share/elasticsearch/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      test:
+        - CMD-SHELL
+        - 'curl -fsS -u "elastic:$${ELASTIC_PASSWORD}" http://localhost:9200/_cluster/health >/dev/null || exit 1'
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 30s
+      start_period: 60s
     networks:
       - elk
 
@@ -30,6 +34,8 @@ services:
         condition: service_healthy
     environment:
       ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
       TELEMETRY_ENABLED: "false"
     mem_limit: 1g
     ports:
@@ -37,6 +43,8 @@ services:
     restart: unless-stopped
     networks:
       - elk
+
+  # Keep your existing Logstash service and remaining configuration.
 
   logstash:
     image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
